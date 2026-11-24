@@ -1,0 +1,23 @@
+[package]
+name = "libgte"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "Standalone pure-Rust PlayStation 1 GTE (Geometry Transformation Engine, COP2) hardware implementation"
+keywords = ["ps1", "psx", "playstation", "gte", "emulator"]
+categories = ["emulators", "no-std"]
+
+[features]
+default = ["std"]
+std = ["alloc"]
+alloc = []
+
+[dependencies]
+
+[dev-dependencies]
+
+[[bench]]
+name = "bench_gte"
+harness = false
