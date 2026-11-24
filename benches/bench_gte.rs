@@ -16,13 +16,13 @@ fn bench(name: &str, iterations: u64, mut body: impl FnMut(&mut Gte)) {
     }
     let start = Instant::now();
     for _ in 0..iterations {
-        body(&mut gte);
+        body(black_box(&mut gte));
     }
     let elapsed = start.elapsed();
     let ns_per_op = elapsed.as_secs_f64() * 1.0e9 / iterations as f64;
     let mops = iterations as f64 / elapsed.as_secs_f64() / 1.0e6;
     println!("{name:<28} {ns_per_op:>10.1} ns/op  {mops:>8.2} Mops/sec");
-    black_box(gte.read_data(25));
+    black_box((gte.read_data(24), gte.read_data(25)));
 }
 
 fn setup() -> Gte {

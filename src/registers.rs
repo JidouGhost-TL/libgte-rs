@@ -475,6 +475,35 @@ impl Opcode {
         self as u8
     }
 
+    /// Returns the retail PS1 GTE busy-cycle count for this opcode.
+    #[must_use]
+    pub const fn cycles(self) -> u32 {
+        match self {
+            Self::Rtps => 15,
+            Self::Nclip => 8,
+            Self::Op => 6,
+            Self::Dpcs => 8,
+            Self::Intpl => 8,
+            Self::Mvmva => 8,
+            Self::Ncds => 19,
+            Self::Cdp => 13,
+            Self::Ncdt => 44,
+            Self::Nccs => 17,
+            Self::Cc => 11,
+            Self::Ncs => 14,
+            Self::Nct => 30,
+            Self::Sqr => 5,
+            Self::Dcpl => 8,
+            Self::Dpct => 17,
+            Self::Avsz3 => 5,
+            Self::Avsz4 => 6,
+            Self::Rtpt => 23,
+            Self::Gpf => 5,
+            Self::Gpl => 5,
+            Self::Ncct => 39,
+        }
+    }
+
     /// Converts a 6-bit function code to an [`Opcode`], or `None` if invalid.
     #[must_use]
     pub const fn from_code(code: u8) -> Option<Self> {

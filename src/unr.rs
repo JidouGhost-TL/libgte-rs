@@ -35,31 +35,74 @@ const fn build_unr_table() -> [u8; 257] {
     table
 }
 
-/// Divides `numerator` by `denominator` with the hardware UNR algorithm.
+/// Divides 16-bit `h` by 16-bit `sz3` with the hardware UNR algorithm.
 ///
 /// Returns `(quotient, overflow)`. On overflow (a zero divisor, or
-/// `numerator >= denominator * 2`) the quotient is `0x1FFFF` and
-/// `overflow` is `true`, matching the hardware `FLAG` bit-17 behaviour.
-/// Inputs are the 16-bit `H` and `SZ3` values; the quotient is the 17-bit
-/// `(H << 16) / SZ` approximation produced by the reciprocal table and one
-/// Newton–Raphson refinement step, exactly as on retail hardware.
+/// `h >= sz3 * 2`) the quotient is `0x1FFFF` and `overflow` is `true`,
+/// matching the hardware `FLAG` bit-17 behaviour. The quotient is the
+/// 17-bit `(H << 16) / SZ3` approximation produced by the reciprocal table
+/// and one Newton–Raphson refinement step, exactly as on retail hardware.
+#[inline]
 #[must_use]
-pub fn divide_unr(numerator: u32, denominator: u32) -> (u32, bool) {
-    if denominator == 0 || numerator >= denominator.wrapping_mul(2) {
+pub const fn divide_unr(h: u16, sz3: u16) -> (u32, bool) {
+    let numerator = h as u32;
+    let denominator = sz3 as u32;
+    if denominator * 2 <= numerator {
         return (0x1_FFFF, true);
     }
-    // Normalise the divisor into [0x8000, 0x10000) and shift the numerator
-    // by the same amount.
-    let shift = denominator.leading_zeros() - 16;
+    // Normalise the 16-bit divisor into [0x8000, 0xFFFF] and shift the
+    // numerator by the same amount. Because `d` is guaranteed to be in
+    // 0x8000..=0xFFFF, `index` is always in 0..=256.
+    let shift = sz3.leading_zeros();
     let d = denominator << shift;
     let index = ((d - 0x7FC0) >> 7) as usize;
-    let u = u64::from(UNR_TABLE[index]) + 0x101;
-    let d = u64::from(d);
+    let u = (UNR_TABLE[index] as u64) + 0x101;
+    let d = d as u64;
     // One Newton–Raphson refinement of the reciprocal seed, in the
     // hardware's fixed-point form: refined = u * (2 - d * u).
     let e = (0x20_00080u64 - (d * u)) >> 8;
     let refined = (0x80u64 + (e * u)) >> 8;
-    let n = u64::from(numerator) << shift;
+    let n = (numerator as u64) << shift;
     let quotient = ((n * refined) + 0x8000) >> 16;
-    (quotient.min(0x1_FFFF) as u32, false)
+    let clamped = if quotient > 0x1_FFFF {
+        0x1_FFFF
+    } else {
+        quotient as u32
+    };
+    (clamped, false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn divide_unr_zero_divisor_overflows() {
+        assert_eq!(divide_unr(0, 0), (0x1_FFFF, true));
+        assert_eq!(divide_unr(1, 0), (0x1_FFFF, true));
+        assert_eq!(divide_unr(u16::MAX, 0), (0x1_FFFF, true));
+    }
+
+    #[test]
+    fn divide_unr_small_divisor_and_overflow_boundary() {
+        assert_eq!(divide_unr(0, 1), (0, false));
+        assert_eq!(divide_unr(1, 1), (0x1_0000, false));
+        assert_eq!(divide_unr(2, 1), (0x1_FFFF, true));
+        assert_eq!(divide_unr(200, 100), (0x1_FFFF, true));
+        assert_eq!(divide_unr(199, 100), (130_417, false));
+    }
+
+    #[test]
+    fn divide_unr_max_u16_inputs() {
+        // u16::MAX / u16::MAX returns 0xFFFF under hardware UNR without panic or overflow.
+        let (q, ovf) = divide_unr(u16::MAX, u16::MAX);
+        assert!(!ovf);
+        assert_eq!(q, 0xFFFF);
+        assert_eq!(divide_unr(0, u16::MAX), (0, false));
+    }
+
+    #[test]
+    fn divide_unr_mid_range_matches_hardware() {
+        assert_eq!(divide_unr(32767, 26330), (81559, false));
+    }
 }
